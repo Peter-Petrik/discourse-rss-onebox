@@ -1,4 +1,4 @@
-plugins:
+discourse_rss_onebox:
   rss_onebox_enabled:
     default: false
   rss_onebox_categories:
