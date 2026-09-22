@@ -1,0 +1,7 @@
+plugins:
+  rss_onebox_enabled:
+    default: false
+  rss_onebox_categories:
+    type: category_list
+    default: ""
+    client: false

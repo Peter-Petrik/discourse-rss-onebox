@@ -1,0 +1,4 @@
+en:
+  site_settings:
+    rss_onebox_enabled: "Render RSS Polling imports in the selected categories as a onebox of the article URL, and hide Show Full Post in those categories."
+    rss_onebox_categories: "Categories whose RSS-imported topics are rendered as a onebox. No categories selected means the plugin has no effect."
