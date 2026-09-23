@@ -52,13 +52,13 @@ New imports into the selected categories are converted automatically from this p
 
 ### How It Works
 
-RSS Polling imports each feed item through core's `TopicEmbed.import`, which passes its topic-creation arguments through the `topic_embed_import_create_args` modifier. For imports into a configured category, the plugin replaces the post body with the item's URL and sets the cook method to Markdown. The Markdown setting is required: imports are otherwise stored as raw HTML unless `embed_support_markdown` is enabled, and raw HTML is never oneboxed.
+RSS Polling imports each feed item through core's `TopicEmbed.import`, which passes its topic-creation arguments through the `topic_embed_import_create_args` modifier. For imports into a configured category, the plugin replaces the post body with the item's URL and sets the cook method to Markdown. Core lowercases the URL it stores for the embed (`TopicEmbed.normalize_url`), which would break case-sensitive URLs such as YouTube video IDs, so the plugin takes the original-case URL from the "imported from" footer that core appends to the body before normalising, and falls back to the stored URL if the two do not match. The Markdown setting is required: imports are otherwise stored as raw HTML unless `embed_support_markdown` is enabled, and raw HTML is never oneboxed.
 
 "Show Full Post" is driven by the `expandable_first_post` attribute of the topic serializer. The plugin omits that attribute for topics in the configured categories and preserves core's condition everywhere else.
 
 ### Converting Existing Topics
 
-The rake task covers every topic in the configured categories that has an embed record, regardless of which feed imported it. Run it inside the container:
+The rake task covers every topic in the configured categories that has an embed record, regardless of which feed imported it. For items whose feed content is the URL itself (RSS Polling's YouTube handling), the task restores the original-case URL from the stored embed content, so it also repairs video topics converted by versions before 0.1.2. Run it inside the container:
 
 ```bash
 cd /var/discourse
@@ -73,6 +73,7 @@ The first run is a dry run that lists each topic ID, author and article URL, the
 ### Known Limitations
 
 - **Edited source posts revert**: When a feed item's content, title or tags change after import, core's `TopicEmbed.import` revises the existing post with the feed content through a path the modifier does not cover. The topic then shows the feed body instead of the onebox. Re-running `rss_onebox:convert` restores the onebox.
+- **Lowercase URLs from versions before 0.1.2**: Versions 0.1.0 and 0.1.1 wrote the lowercased embed URL into the post body. Re-running `rss_onebox:convert` repairs video topics; for other topics the original-case URL is no longer stored, so their URLs stay lowercase, which resolves correctly on sites with lowercase slugs.
 - **Site-wide scope of the modifier**: The modifier applies to every `TopicEmbed.import` call targeting a configured category, including embeds created by other means than RSS Polling. Configured categories are expected to be dedicated to RSS imports.
 
 ## Future Enhancements

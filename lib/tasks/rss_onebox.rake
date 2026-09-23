@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Converts topics imported before the plugin was installed. Runs as a dry run unless APPLY=1 is set. The rewrite is silent: raw and cook_method are written with update_columns, so no revision, bump, or notification is created and topic dates are unchanged. Posts already holding the bare URL with Markdown cooking are skipped, so repeated runs are safe.
+# Converts topics imported before the plugin was installed, and repairs topics converted by 0.1.0 or 0.1.1 with a lowercased URL. Runs as a dry run unless APPLY=1 is set. The rewrite is silent: raw and cook_method are written with update_columns, so no revision, bump, or notification is created and topic dates are unchanged. Posts already holding their target URL with Markdown cooking are skipped, so repeated runs are safe.
 desc "Convert RSS-imported topics in rss_onebox_categories to a onebox of the article URL (dry run unless APPLY=1)"
 task "rss_onebox:convert" => :environment do
   category_ids = SiteSetting.rss_onebox_categories_map
@@ -21,15 +21,29 @@ task "rss_onebox:convert" => :environment do
     .find_each do |embed|
       post = embed.post
 
-      if post.nil? || (post.raw.strip == embed.embed_url && post.cook_method == regular)
+      if post.nil?
         skipped += 1
         next
       end
 
-      puts "topic #{embed.topic_id} | #{embed.topic.user&.username} | #{embed.embed_url}"
+      # embed_url is stored lowercased. For items whose feed content is the URL itself (RSS Polling's YouTube handling), embed_content_cache holds the original-case URL, so it is used when it normalises to embed_url.
+      cache = embed.embed_content_cache.to_s.strip
+      target =
+        if cache.match?(%r{\Ahttps?://\S+\z}) && TopicEmbed.normalize_url(cache) == embed.embed_url
+          cache
+        else
+          embed.embed_url
+        end
+
+      if post.raw.strip == target && post.cook_method == regular
+        skipped += 1
+        next
+      end
+
+      puts "topic #{embed.topic_id} | #{embed.topic.user&.username} | #{target}"
 
       if apply
-        post.update_columns(raw: embed.embed_url, cook_method: regular)
+        post.update_columns(raw: target, cook_method: regular)
         # rebake! cooks the new raw and enqueues post processing with bypass_bump, which fetches the onebox.
         post.rebake!
       end
@@ -37,5 +51,5 @@ task "rss_onebox:convert" => :environment do
       converted += 1
     end
 
-  puts "#{apply ? "Converted" : "Would convert"}: #{converted}. Skipped (already converted or no post): #{skipped}."
+  puts "#{apply ? "Converted" : "Would convert"}: #{converted}. Skipped (already correct or no post): #{skipped}."
 end
