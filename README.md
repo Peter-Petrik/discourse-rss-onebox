@@ -14,6 +14,7 @@ Early release, in use on a single production forum running Discourse 2026.7 ESR.
 - **Feed Summaries (optional)**: When an article's own page provides no description, the preview shows the summary from the feed, or the article's opening paragraph if the feed has none. The summary appears inside the link preview, where the page's own description would be, or below the link when no preview can be built.
 - **YouTube Descriptions (optional)**: The full video description from the YouTube feed is shown below the player, with line breaks preserved and links clickable.
 - **Title Formats (optional)**: Separate formats for blog and YouTube topics, combining the post's title with fixed text and the blog's or channel's name, for example `Video: %{title}` or `%{source}: %{title}`. Existing topics are renamed silently.
+- **Display Names Page**: An admin page listing every RSS Polling feed with its published name and an optional display name to use in titles instead, with a button to refresh published names from the feeds.
 - **Protection Against Feed Updates**: Edits to a blog post or changes to a feed's format do not overwrite oneboxed topics.
 - **No Theme Component Required**: All behaviour is server-side, apart from a small stylesheet for spacing.
 
@@ -29,6 +30,8 @@ Settings are under **Admin → Installed plugins → RSS Polling Onebox → Sett
 | `rss_onebox_youtube_descriptions` | boolean | `false` | Shows the full YouTube video description below the player. |
 | `rss_onebox_blog_title_format` | text | empty | Title format for topics from blog feeds (every feed that is not YouTube). Empty leaves titles unchanged. |
 | `rss_onebox_youtube_title_format` | text | empty | Title format for topics from YouTube channel feeds. Empty leaves titles unchanged. |
+
+Display names for `%{source}` are set on the plugin's **Display names** page (**Admin → Installed plugins → RSS Polling Onebox → Display names**, at `/admin/plugins/discourse-rss-onebox/display-names`), not in the settings above.
 
 Summaries and descriptions are stored for every new import regardless of the two display settings. A change to either setting applies to new topics immediately and to existing topics after `rake rss_onebox:enhance REBAKE=1 APPLY=1`.
 
@@ -74,9 +77,17 @@ The stored text is added to the rendered post during core's post processing (the
 
 ### Title Formats
 
-A format is plain text containing `%{title}` (the post's or video's title as published in the feed) and optionally `%{source}` (the blog's or channel's name, taken from the feed's own title with trailing punctuation removed). If a format uses `%{source}` and no source name is known, the title is left unchanged. The result is cut to Discourse's `max_topic_title_length`.
+A format is plain text containing `%{title}` (the post's or video's title as published in the feed) and optionally `%{source}` (the blog's or channel's name: the feed's display name if one is set on the Display names page, otherwise the feed's own published title with trailing punctuation removed). If a format uses `%{source}` and no source name is known, the title is left unchanged. The result is cut to Discourse's `max_topic_title_length`.
 
-The feed's original title and source name are stored on each topic, and the displayed title is always built from them, so changing a format never produces doubled prefixes. The plugin's wrapper around `TopicEmbed.import` applies the format on creation and on every poll, renaming silently (no revision, bump, or notification) when the result differs, for example after a format change or when the feed's name or an item's title changes. Core therefore always sees matching titles and never creates a title revision.
+The feed's original title, published source name, and RSS Polling feed ID are stored on each topic, and the displayed title is always built from them, so changing a format never produces doubled prefixes. The plugin's wrapper around `TopicEmbed.import` applies the format on creation and on every poll, renaming silently (no revision, bump, or notification) when the result differs, for example after a format change or when the feed's name or an item's title changes. Core therefore always sees matching titles and never creates a title revision.
+
+### Display Names Page
+
+The page lists every RSS Polling feed, in the same table layout as RSS Polling's own feed list, with its author, its published name as last read, and a display name field. A blank display name uses the published name, shown as the field's placeholder. Feeds that are disabled in RSS Polling are dimmed, as on RSS Polling's page, and their display name can still be edited.
+
+Display names and published names are stored per RSS Polling feed ID in core's plugin store, so a display name survives changes to the feed's published name or URL. Saving a display name re-renders the titles of that feed's topics in a background job, silently.
+
+Published names are recorded whenever a feed is read: during polls that import an item, by the enhance task, and by the **Refresh published names** button. The button reads every enabled feed in a background job; the page shows that it is running and updates when it finishes. A feed that cannot be read keeps its previous name and is marked on the page. When a feed's published name changes and it has no display name, its topic titles are re-rendered silently.
 
 ### Enhancing Existing Topics
 
@@ -84,7 +95,7 @@ The feed's original title and source name are stored on each topic, and the disp
 
 For summaries and descriptions, It considers only topics that need data: YouTube topics without a stored description, and topics whose onebox has no description (or failed) without a stored summary. For each, it tries in order: the item in the live feed, older pages of the same feed (`?paged=2`, `?paged=3`, and so on, which WordPress supports; it stops at the first page that fails, is empty, or repeats), and finally the first paragraph of at least 80 characters in the article page's main content. Topics with no source found are reported.
 
-For titles, the source name comes from the feed that contains the topic's item or, for items no longer in any feed, from the only configured feed with the same author as the topic. Topics whose source name cannot be determined keep an unformatted title and are counted in the summary line. Renaming is silent, as on polls.
+For titles, the topic's feed is the one that contains its item or, for items no longer in any feed, the only configured feed with the same author as the topic; the source name is that feed's display name, else its published name. The task also records each feed's published name and each topic's feed ID, which the Display names page and later re-renders use. Topics whose source name cannot be determined keep an unformatted title and are counted in the summary line. Renaming is silent, as on polls.
 
 The task prints a progress line per feed and per older feed page, a line per topic that needs data, and a line per title it would change. It warns, with a link to the plugin's settings, when either display setting is off, because stored summaries and descriptions are not displayed until the setting is on.
 
@@ -119,7 +130,7 @@ The first run is a dry run that lists each topic ID, author and article URL, the
 - **Manual title edits**: A topic's title is rebuilt from the feed on every poll while its item is in the feed, so a title edited by hand in Discourse is replaced. Core behaves the same way without the plugin.
 - **Source names for older items**: For items no longer in any feed, the source name is found through the topic's author, which works only when that author has exactly one configured feed.
 - **Historical coverage**: Older items are recovered only where a source still exists. YouTube channel feeds hold the latest 15 videos and do not page, so older videos may get no description; non-WordPress feeds may not page; the article-page fallback is a heuristic that depends on the page layout.
-- **Dependence on RSS Polling internals**: Reading feed data depends on RSS Polling's poll job class and its `feed_url` argument, verified against Discourse 2026.7.3.
+- **Dependence on RSS Polling internals**: Reading feed data depends on RSS Polling's poll job class and its `feed_url` and `rss_feed_id` arguments, and the Display names page reads RSS Polling's feed table, all verified against Discourse 2026.7.3.
 - **Site-wide scope of the modifier**: The modifier applies to every `TopicEmbed.import` call targeting a configured category, including embeds created by other means than RSS Polling. Configured categories are expected to be dedicated to RSS imports.
 
 ## Future Enhancements

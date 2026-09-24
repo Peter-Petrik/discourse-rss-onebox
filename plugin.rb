@@ -2,7 +2,7 @@
 
 # name: discourse-rss-onebox
 # about: Renders RSS Polling imports in selected categories as a onebox of the article URL, with optional feed summaries, YouTube descriptions, and title formats, and hides "Show Full Post" there
-# version: 0.2.3
+# version: 0.2.4
 # authors: Peter Petrik
 # url: https://github.com/Peter-Petrik/discourse-rss-onebox
 
@@ -10,8 +10,17 @@ enabled_site_setting :rss_onebox_enabled
 
 register_asset "stylesheets/rss-onebox.scss"
 
+add_admin_route "rss_onebox.title", "discourse-rss-onebox", { use_new_show_route: true }
+
+module ::DiscourseRssOnebox
+  PLUGIN_NAME = "discourse-rss-onebox"
+end
+
+require_relative "lib/discourse_rss_onebox/engine"
 require_relative "lib/discourse_rss_onebox/feed_reader"
 require_relative "lib/discourse_rss_onebox/renderer"
+
+Discourse::Application.routes.append { mount ::DiscourseRssOnebox::Engine, at: "/admin/plugins/rss_onebox" }
 
 module ::DiscourseRssOnebox
   def self.configured?(category_id)
@@ -31,6 +40,41 @@ module ::DiscourseRssOnebox
 
   ORIGINAL_TITLE_FIELD = "rss_onebox_original_title"
   SOURCE_FIELD = "rss_onebox_source_name"
+  FEED_ID_FIELD = "rss_onebox_feed_id"
+
+  # Display names are set on the plugin's Display names admin page and stored per RSS Polling feed ID, so they survive changes to a feed's published name or URL.
+  def self.display_name(feed_id)
+    feed_id.present? ? PluginStore.get(PLUGIN_NAME, "display_name:#{feed_id}").presence : nil
+  end
+
+  def self.published_name(feed_id)
+    feed_id.present? ? PluginStore.get(PLUGIN_NAME, "published_name:#{feed_id}").presence : nil
+  end
+
+  # Records a feed's published name. Returns true when it changed.
+  def self.record_published_name(feed_id, name)
+    return false if feed_id.blank? || name.blank?
+    return false if published_name(feed_id) == name
+    PluginStore.set(PLUGIN_NAME, "published_name:#{feed_id}", name)
+    true
+  end
+
+  # The name used for %{source}: the feed's display name, else its published name.
+  def self.resolve_source(feed_id, published)
+    display_name(feed_id) || published.presence || published_name(feed_id)
+  end
+
+  # Rebuilds a topic's title from its stored original title, feed ID, and published source name, renaming silently when it differs. Used by the re-render job and the enhance task.
+  def self.rerender_title!(post)
+    topic = post.topic
+    fields = post.custom_fields
+    original = fields[ORIGINAL_TITLE_FIELD].presence || topic.title
+    source = resolve_source(fields[FEED_ID_FIELD], fields[SOURCE_FIELD])
+    desired = format_title(original, source, youtube: youtube_url?(post.raw.strip))
+    return false if topic.title == desired
+    rename!(topic, desired)
+    true
+  end
   TITLE_PLACEHOLDERS = /%\{(title|source)\}/
 
   def self.youtube_url?(url)
@@ -61,16 +105,13 @@ module ::DiscourseRssOnebox
     topic.save!(validate: false)
   end
 
-  # Stores the feed's original title and source name on the first post, saving only when either changed.
-  def self.store_title_data!(post, original, source)
+  # Stores the feed's original title, published source name, and feed ID on the first post, saving only when something changed.
+  def self.store_title_data!(post, original, source, feed_id = nil)
     fields = post.custom_fields
     changed = false
-    if original.present? && fields[ORIGINAL_TITLE_FIELD] != original
-      fields[ORIGINAL_TITLE_FIELD] = original
-      changed = true
-    end
-    if source.present? && fields[SOURCE_FIELD] != source
-      fields[SOURCE_FIELD] = source
+    { ORIGINAL_TITLE_FIELD => original, SOURCE_FIELD => source, FEED_ID_FIELD => feed_id&.to_s }.each do |key, value|
+      next if value.blank? || fields[key] == value
+      fields[key] = value
       changed = true
     end
     post.save_custom_fields(true) if changed
@@ -93,10 +134,12 @@ module ::DiscourseRssOnebox
   module PollFeedPatch
     def execute(args)
       Thread.current[:rss_onebox_feed_url] = args[:feed_url]
+      Thread.current[:rss_onebox_feed_id] = args[:rss_feed_id]
       Thread.current[:rss_onebox_feed_data] = nil
       super
     ensure
       Thread.current[:rss_onebox_feed_url] = nil
+      Thread.current[:rss_onebox_feed_id] = nil
       Thread.current[:rss_onebox_feed_data] = nil
     end
   end
@@ -108,20 +151,27 @@ module ::DiscourseRssOnebox
       configured = protect || (embed.nil? && ::DiscourseRssOnebox.configured?(category_id))
       original_title = title
 
+      feed_id = nil
       if configured && title.present?
         youtube = ::DiscourseRssOnebox.youtube_url?(url)
+        fields = protect ? embed.post&.custom_fields : nil
+        feed_id = Thread.current[:rss_onebox_feed_id].presence || fields&.[](::DiscourseRssOnebox::FEED_ID_FIELD)
         polled = Thread.current[:rss_onebox_feed_data] ? ::DiscourseRssOnebox::FeedReader.current_source : nil
-        stored = protect ? embed.post&.custom_fields&.[](::DiscourseRssOnebox::SOURCE_FIELD) : nil
-        source = polled || stored
-        source ||= ::DiscourseRssOnebox::FeedReader.current_source if ::DiscourseRssOnebox.format_needs_source?(youtube)
+        published = polled || fields&.[](::DiscourseRssOnebox::SOURCE_FIELD)
+        needs_source = ::DiscourseRssOnebox.format_needs_source?(youtube)
+        if published.blank? && needs_source && ::DiscourseRssOnebox.display_name(feed_id).blank?
+          published = ::DiscourseRssOnebox::FeedReader.current_source
+        end
+        source = ::DiscourseRssOnebox.resolve_source(feed_id, published)
         title = ::DiscourseRssOnebox.format_title(original_title, source, youtube: youtube)
         Thread.current[:rss_onebox_original_title] = original_title
-        Thread.current[:rss_onebox_source_name] = source
+        Thread.current[:rss_onebox_source_name] = published
+        Thread.current[:rss_onebox_topic_feed_id] = feed_id
       end
 
-      # For an existing topic, the stored title data is refreshed and the topic renamed silently when the formatted title changed (a new format, source name, or feed title), so core sees matching titles and does not create a revision.
+      # For an existing topic, the stored title data is refreshed and the topic renamed silently when the formatted title changed (a new format, display name, source name, or feed title), so core sees matching titles and does not create a revision.
       if protect && embed.post
-        ::DiscourseRssOnebox.store_title_data!(embed.post, original_title, Thread.current[:rss_onebox_source_name])
+        ::DiscourseRssOnebox.store_title_data!(embed.post, original_title, Thread.current[:rss_onebox_source_name], feed_id)
         ::DiscourseRssOnebox.rename!(embed.topic, title) if title.present? && embed.topic.title != title
       end
 
@@ -144,6 +194,7 @@ module ::DiscourseRssOnebox
     ensure
       Thread.current[:rss_onebox_original_title] = nil
       Thread.current[:rss_onebox_source_name] = nil
+      Thread.current[:rss_onebox_topic_feed_id] = nil
     end
   end
 end
@@ -178,6 +229,8 @@ after_initialize do
       source = Thread.current[:rss_onebox_source_name]
       fields[::DiscourseRssOnebox::ORIGINAL_TITLE_FIELD] = original if original.present?
       fields[::DiscourseRssOnebox::SOURCE_FIELD] = source if source.present?
+      feed_id = Thread.current[:rss_onebox_topic_feed_id]
+      fields[::DiscourseRssOnebox::FEED_ID_FIELD] = feed_id.to_s if feed_id.present?
       args[:custom_fields] = (args[:custom_fields] || {}).merge(fields) if fields.present?
     end
 

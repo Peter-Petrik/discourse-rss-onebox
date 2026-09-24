@@ -4,3 +4,24 @@ en:
       site_settings:
         categories:
           discourse_rss_onebox: "Discourse RSS Polling Onebox"
+  js:
+    rss_onebox:
+      title: "RSS Polling Onebox"
+    admin:
+      rss_onebox:
+        display_names:
+          title: "Display names"
+          nav_description: "Names shown for each feed in topic titles"
+          description: "The name that replaces the source placeholder in the title format settings. Leave a display name blank to use the name the feed publishes. Saving a name renames that feed's topics silently."
+          refresh: "Refresh published names"
+          refreshing: "Refreshing published names…"
+          feed: "Feed"
+          author: "Author:"
+          disabled: "disabled in RSS Polling"
+          published_name: "Published name"
+          display_name: "Display name"
+          not_read_yet: "Not read yet"
+          fetch_error: "Could not be read at the last refresh"
+          save: "Save"
+          saved: "Saved"
+          empty: "No RSS Polling feeds are configured."

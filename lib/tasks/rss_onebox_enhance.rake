@@ -4,7 +4,7 @@
 #
 # Summaries and descriptions: stores feed summaries and YouTube descriptions for topics that need them (YouTube topics without a stored description, and topics whose onebox has no description, or failed, without a stored summary), then rebakes those topics. Sources are tried in order: the item in the live feed, older pages of the same feed (WordPress's paged parameter), then the article page's first substantial paragraph. REBAKE=1 additionally rebakes every topic that already has stored data, which applies a change to either display setting.
 #
-# Titles: re-renders each topic's title from its original feed title and source name using the title format settings, renaming silently (no revision, bump, or notification). The source name comes from the feed containing the topic's item, or else from the only configured feed with the same author.
+# Titles: re-renders each topic's title from its original feed title and source name using the title format settings, renaming silently (no revision, bump, or notification). The topic's feed is the one containing its item, or else the only configured feed with the same author; the source name is that feed's display name (set on the plugin's Display names page), else its published name. The feed's published name and the topic's feed ID are recorded for later re-rendering.
 desc "Store feed summaries, YouTube descriptions, and formatted titles for existing RSS-imported topics (dry run unless APPLY=1; REBAKE=1 to re-render all)"
 task "rss_onebox:enhance" => :environment do
   category_ids = SiteSetting.rss_onebox_categories_map
@@ -66,6 +66,7 @@ task "rss_onebox:enhance" => :environment do
     puts "Reading #{feed.url} (#{remaining.()} topics to match)"
     data = onebox::FeedReader.read(feed.url)
     feed_source[feed.id] = data[:source]
+    onebox.record_published_name(feed.id, data[:source]) if apply
     data[:items].each_key { |u| item_feed[u] ||= feed }
     record.(data[:items], "feed")
     puts "  feed: #{data[:items].size} items, source name #{data[:source].inspect}, #{remaining.()} still unmatched"
@@ -124,7 +125,9 @@ task "rss_onebox:enhance" => :environment do
       candidates = feeds_by_author[topic.user_id] || []
       feed = candidates.first if candidates.size == 1
     end
-    source = (feed && feed_source[feed.id]).presence || post.custom_fields[onebox::SOURCE_FIELD].presence
+    feed_id = feed&.id || post.custom_fields[onebox::FEED_ID_FIELD].presence
+    published = (feed && feed_source[feed.id]).presence || post.custom_fields[onebox::SOURCE_FIELD].presence
+    source = onebox.resolve_source(feed_id, published)
     youtube = onebox.youtube_url?(post.raw.strip)
     unknown_source += 1 if source.blank? && onebox.format_needs_source?(youtube)
     desired = onebox.format_title(original, source, youtube: youtube)
@@ -134,7 +137,7 @@ task "rss_onebox:enhance" => :environment do
       puts "title | topic #{topic.id} | #{topic.title.truncate(50)} -> #{desired.truncate(70)}"
     end
     if apply
-      onebox.store_title_data!(post, original, source)
+      onebox.store_title_data!(post, original, published, feed_id)
       onebox.rename!(topic, desired) if topic.title != desired
     end
   end

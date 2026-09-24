@@ -123,10 +123,14 @@ module ::DiscourseRssOnebox
     end
 
     # Feed data for the poll currently running in this thread, read once per poll on first use.
+    # The feed's published name is recorded against its RSS Polling feed ID whenever the feed is read during a poll.
     def self.current_feed
       feed_url = Thread.current[:rss_onebox_feed_url]
       return nil if feed_url.blank?
-      Thread.current[:rss_onebox_feed_data] ||= read(feed_url)
+      Thread.current[:rss_onebox_feed_data] ||=
+        read(feed_url).tap do |data|
+          ::DiscourseRssOnebox.record_published_name(Thread.current[:rss_onebox_feed_id], data[:source])
+        end
     end
 
     def self.current_item(embed_url)
