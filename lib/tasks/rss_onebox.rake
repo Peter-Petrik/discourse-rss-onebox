@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Converts topics imported before the plugin was installed, and repairs topics converted by 0.1.0 or 0.1.1 with a lowercased URL. Runs as a dry run unless APPLY=1 is set. The rewrite is silent: raw and cook_method are written with update_columns, so no revision, bump, or notification is created and topic dates are unchanged. Posts already holding their target URL with Markdown cooking are skipped, so repeated runs are safe.
+# Converts topics imported before the plugin was installed, repairs topics converted by 0.1.0 or 0.1.1 with a lowercased URL, and restores topics whose body core replaced with feed content before 0.1.3. Runs as a dry run unless APPLY=1 is set. The rewrite is silent: raw and cook_method are written with update_columns, so no revision, bump, or notification is created and topic dates are unchanged. Posts already holding their target URL with Markdown cooking are skipped, so repeated runs are safe.
 desc "Convert RSS-imported topics in rss_onebox_categories to a onebox of the article URL (dry run unless APPLY=1)"
 task "rss_onebox:convert" => :environment do
   category_ids = SiteSetting.rss_onebox_categories_map
@@ -35,7 +35,8 @@ task "rss_onebox:convert" => :environment do
           embed.embed_url
         end
 
-      if post.raw.strip == target && post.cook_method == regular
+      # A bare URL that normalises to embed_url is correct, including original-case URLs and trailing slashes.
+      if post.cook_method == regular && (post.raw.strip == target || ::DiscourseRssOnebox.onebox_body?(post.raw, embed.embed_url))
         skipped += 1
         next
       end

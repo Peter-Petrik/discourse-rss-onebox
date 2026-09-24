@@ -68,17 +68,17 @@ APPLY=1 rake rss_onebox:convert
 exit
 ```
 
-The first run is a dry run that lists each topic ID, author and article URL, then reports how many topics would be converted. `APPLY=1` performs the conversion and rebakes each post; the onebox preview is fetched by a background job, so a topic may briefly show a bare link. Posts already converted are skipped, so the task can be re-run at any time.
+The first run is a dry run that lists each topic ID, author and article URL, then reports how many topics would be converted. `APPLY=1` performs the conversion and rebakes each post; the onebox preview is fetched by a background job, so a topic may briefly show a bare link. Posts already converted are skipped, so the task can be re-run at any time; it also restores any topic whose body core replaced with feed content before 0.1.3.
 
 ### Known Limitations
 
-- **Edited source posts revert**: When a feed item's content, title or tags change after import, core's `TopicEmbed.import` revises the existing post with the feed content through a path the modifier does not cover. The topic then shows the feed body instead of the onebox. Re-running `rss_onebox:convert` restores the onebox.
+- **Feed content updates are ignored**: For topics already imported into a configured category, changes to a feed item's content (for example an edited blog post, or a change to the feed format) no longer rewrite the post. Title, tag, and author changes still apply; because core rewrites the body together with a title or tag change, the plugin restores the onebox body silently afterwards, and that edit remains in the post's revision history. The plugin wraps core's `TopicEmbed.import` to achieve this, so it depends on that method's signature and its content processing, verified against Discourse 2026.7.3.
 - **Lowercase URLs from versions before 0.1.2**: Versions 0.1.0 and 0.1.1 wrote the lowercased embed URL into the post body. Re-running `rss_onebox:convert` repairs video topics; for other topics the original-case URL is no longer stored, so their URLs stay lowercase, which resolves correctly on sites with lowercase slugs.
 - **Site-wide scope of the modifier**: The modifier applies to every `TopicEmbed.import` call targeting a configured category, including embeds created by other means than RSS Polling. Configured categories are expected to be dedicated to RSS imports.
 
 ## Future Enhancements
 
-- **Automatic Handling of Edited Posts**: Re-apply the onebox body when core revises an embedded post, removing the need to re-run the rake task.
+- **Enhanced Rendering**: Optional descriptions for YouTube items, and an automatic fallback summary for sites whose pages provide no description.
 
 ## Support
 
