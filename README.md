@@ -13,6 +13,7 @@ Early release, in use on a single production forum running Discourse 2026.7 ESR.
 - **Bulk Conversion of Existing Topics**: A rake task converts topics imported before the plugin was installed. It defaults to a dry run, is safe to repeat, and rewrites posts silently: no revision history, no bump, no notifications, and topic dates are unchanged.
 - **Feed Summaries (optional)**: When an article's own page provides no description, the preview shows the summary from the feed, or the article's opening paragraph if the feed has none. The summary appears inside the link preview, where the page's own description would be, or below the link when no preview can be built.
 - **YouTube Descriptions (optional)**: The full video description from the YouTube feed is shown below the player, with line breaks preserved and links clickable.
+- **Title Formats (optional)**: Separate formats for blog and YouTube topics, combining the post's title with fixed text and the blog's or channel's name, for example `Video: %{title}` or `%{source}: %{title}`. Existing topics are renamed silently.
 - **Protection Against Feed Updates**: Edits to a blog post or changes to a feed's format do not overwrite oneboxed topics.
 - **No Theme Component Required**: All behaviour is server-side, apart from a small stylesheet for spacing.
 
@@ -26,6 +27,8 @@ Settings are under **Admin → Installed plugins → RSS Polling Onebox → Sett
 | `rss_onebox_categories` | category list | empty | Categories whose RSS-imported topics are rendered as a onebox. With no categories selected, the plugin has no effect. |
 | `rss_onebox_enhanced` | boolean | `false` | Shows the feed summary when an article's page provides no description. |
 | `rss_onebox_youtube_descriptions` | boolean | `false` | Shows the full YouTube video description below the player. |
+| `rss_onebox_blog_title_format` | text | empty | Title format for topics from blog feeds (every feed that is not YouTube). Empty leaves titles unchanged. |
+| `rss_onebox_youtube_title_format` | text | empty | Title format for topics from YouTube channel feeds. Empty leaves titles unchanged. |
 
 Summaries and descriptions are stored for every new import regardless of the two display settings. A change to either setting applies to new topics immediately and to existing topics after `rake rss_onebox:enhance REBAKE=1 APPLY=1`.
 
@@ -65,13 +68,25 @@ RSS Polling imports each feed item through core's `TopicEmbed.import`, which pas
 
 ### Feed Summaries and YouTube Descriptions
 
-RSS Polling's parser drops `media:description` and plain-text summaries, so the plugin reads the feed's XML itself. It wraps RSS Polling's poll job to learn which feed is being polled, reads that feed once on the first new item of the poll (polls with no new items fetch nothing extra), and stores each new item's summary or video description on the post as a custom field. The summary is the item's `<description>` when it holds at least 80 characters of text, otherwise the opening paragraphs of the item's full body, and is capped at about 300 characters.
+RSS Polling's parser drops `media:description` and plain-text summaries, so the plugin reads the feed's XML itself. It wraps RSS Polling's poll job to learn which feed is being polled, reads that feed once on the first new item of the poll (polls with no new items fetch nothing extra), and stores each new item's summary or video description on the post as a custom field. The summary is the item's `<description>` when it holds at least 80 characters of text, otherwise the opening paragraphs of the item's full body, and is capped at about 300 characters. Line breaks inside a paragraph become a ` · ` separator, so fields separated only by line breaks (for example a log entry's distance, duration, and crew) do not run together.
 
 The stored text is added to the rendered post during core's post processing (the `post_process_cooked` event), after the onebox is built and before the rendered HTML is saved. A summary is added only when the rendered onebox has no description of its own, so sites that publish a description are unaffected. The post's raw body remains the bare URL.
 
+### Title Formats
+
+A format is plain text containing `%{title}` (the post's or video's title as published in the feed) and optionally `%{source}` (the blog's or channel's name, taken from the feed's own title with trailing punctuation removed). If a format uses `%{source}` and no source name is known, the title is left unchanged. The result is cut to Discourse's `max_topic_title_length`.
+
+The feed's original title and source name are stored on each topic, and the displayed title is always built from them, so changing a format never produces doubled prefixes. The plugin's wrapper around `TopicEmbed.import` applies the format on creation and on every poll, renaming silently (no revision, bump, or notification) when the result differs, for example after a format change or when the feed's name or an item's title changes. Core therefore always sees matching titles and never creates a title revision.
+
 ### Enhancing Existing Topics
 
-`rss_onebox:enhance` stores summaries and video descriptions for topics imported before 0.2.0. It considers only topics that need data: YouTube topics without a stored description, and topics whose onebox has no description (or failed) without a stored summary. For each, it tries in order: the item in the live feed, older pages of the same feed (`?paged=2`, `?paged=3`, and so on, which WordPress supports; it stops at the first page that fails, is empty, or repeats), and finally the first paragraph of at least 80 characters in the article page's main content. Topics with no source found are reported.
+`rss_onebox:enhance` brings existing topics up to date: it stores summaries and video descriptions for topics imported before 0.2.0, and re-renders every topic's title from the title format settings.
+
+For summaries and descriptions, It considers only topics that need data: YouTube topics without a stored description, and topics whose onebox has no description (or failed) without a stored summary. For each, it tries in order: the item in the live feed, older pages of the same feed (`?paged=2`, `?paged=3`, and so on, which WordPress supports; it stops at the first page that fails, is empty, or repeats), and finally the first paragraph of at least 80 characters in the article page's main content. Topics with no source found are reported.
+
+For titles, the source name comes from the feed that contains the topic's item or, for items no longer in any feed, from the only configured feed with the same author as the topic. Topics whose source name cannot be determined keep an unformatted title and are counted in the summary line. Renaming is silent, as on polls.
+
+The task prints a progress line per feed and per older feed page, a line per topic that needs data, and a line per title it would change. It warns, with a link to the plugin's settings, when either display setting is off, because stored summaries and descriptions are not displayed until the setting is on.
 
 ```bash
 cd /var/discourse
@@ -101,6 +116,8 @@ The first run is a dry run that lists each topic ID, author and article URL, the
 
 - **Feed content updates are ignored**: For topics already imported into a configured category, changes to a feed item's content (for example an edited blog post, or a change to the feed format) no longer rewrite the post. Title, tag, and author changes still apply; because core rewrites the body together with a title or tag change, the plugin restores the onebox body silently afterwards, and that edit remains in the post's revision history. The plugin wraps core's `TopicEmbed.import` to achieve this, so it depends on that method's signature and its content processing, verified against Discourse 2026.7.3.
 - **Lowercase URLs from versions before 0.1.2**: Versions 0.1.0 and 0.1.1 wrote the lowercased embed URL into the post body. Re-running `rss_onebox:convert` repairs video topics; for other topics the original-case URL is no longer stored, so their URLs stay lowercase, which resolves correctly on sites with lowercase slugs.
+- **Manual title edits**: A topic's title is rebuilt from the feed on every poll while its item is in the feed, so a title edited by hand in Discourse is replaced. Core behaves the same way without the plugin.
+- **Source names for older items**: For items no longer in any feed, the source name is found through the topic's author, which works only when that author has exactly one configured feed.
 - **Historical coverage**: Older items are recovered only where a source still exists. YouTube channel feeds hold the latest 15 videos and do not page, so older videos may get no description; non-WordPress feeds may not page; the article-page fallback is a heuristic that depends on the page layout.
 - **Dependence on RSS Polling internals**: Reading feed data depends on RSS Polling's poll job class and its `feed_url` argument, verified against Discourse 2026.7.3.
 - **Site-wide scope of the modifier**: The modifier applies to every `TopicEmbed.import` call targeting a configured category, including embeds created by other means than RSS Polling. Configured categories are expected to be dedicated to RSS imports.

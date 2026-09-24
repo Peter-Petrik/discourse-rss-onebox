@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module ::DiscourseRssOnebox
-  # Reads a feed's XML directly, because RSS Polling's parser drops media:description and plain-text summaries. Returns a hash keyed by normalised item URL (the same normalisation as TopicEmbed.embed_url) with :summary and :video_description.
+  # Reads a feed's XML directly, because RSS Polling's parser drops media:description and plain-text summaries. read and parse_feed return { items:, source: }: items is a hash keyed by normalised item URL (the same normalisation as TopicEmbed.embed_url) with :summary and :video_description; source is the feed's own published name.
   module FeedReader
     SUMMARY_MIN_CHARS = 80
     SUMMARY_MAX_CHARS = 300
@@ -23,13 +23,18 @@ module ::DiscourseRssOnebox
 
     def self.read(url)
       xml = fetch(url)
-      xml ? parse(xml) : {}
+      xml ? parse_feed(xml) : { items: {}, source: nil }
     end
 
     def self.parse(xml)
+      parse_feed(xml)[:items]
+    end
+
+    def self.parse_feed(xml)
       doc = Nokogiri.XML(xml)
       doc.remove_namespaces!
       items = {}
+      source = clean_source(doc.at_xpath("/rss/channel/title")&.text || doc.at_xpath("/feed/title")&.text)
 
       doc.xpath("//item").each do |item|
         link = item.at_xpath("./link")&.text.to_s.strip
@@ -45,9 +50,14 @@ module ::DiscourseRssOnebox
         items[TopicEmbed.normalize_url(link)] = { video_description: video } if video.present?
       end
 
-      items
+      { items: items, source: source }
     rescue StandardError
-      {}
+      { items: {}, source: nil }
+    end
+
+    # The feed's published name, with whitespace collapsed and trailing punctuation removed.
+    def self.clean_source(name)
+      name.to_s.squish.sub(/[\s.,;:!?]+\z/, "").presence
     end
 
     # The feed's <description> when it holds at least SUMMARY_MIN_CHARS of text; otherwise the opening paragraphs of the full body, accumulated until SUMMARY_MIN_CHARS.
@@ -113,11 +123,18 @@ module ::DiscourseRssOnebox
     end
 
     # Feed data for the poll currently running in this thread, read once per poll on first use.
-    def self.current_item(embed_url)
+    def self.current_feed
       feed_url = Thread.current[:rss_onebox_feed_url]
       return nil if feed_url.blank?
       Thread.current[:rss_onebox_feed_data] ||= read(feed_url)
-      Thread.current[:rss_onebox_feed_data][embed_url]
+    end
+
+    def self.current_item(embed_url)
+      current_feed&.dig(:items, embed_url)
+    end
+
+    def self.current_source
+      current_feed&.dig(:source)
     end
   end
 end
