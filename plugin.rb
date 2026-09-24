@@ -2,7 +2,7 @@
 
 # name: discourse-rss-onebox
 # about: Renders RSS Polling imports in selected categories as a onebox of the article URL, with optional feed summaries, YouTube descriptions, and title formats, and hides "Show Full Post" there
-# version: 0.2.4
+# version: 0.2.5
 # authors: Peter Petrik
 # url: https://github.com/Peter-Petrik/discourse-rss-onebox
 
@@ -129,7 +129,6 @@ module ::DiscourseRssOnebox
     post.rebake!
   end
 
-  # Wraps TopicEmbed.import. For topics already imported into a configured category, feed-content changes are ignored: the stored content fingerprint is set to the value core is about to compute, so core does not revise the body. Title, tag, and author changes still go through core. If core revises the body anyway (a title or tag change always rewrites it, as would a future change to core's processing), the body is restored silently afterwards.
   # Wraps RSS Polling's poll job so that, during a poll, the plugin knows which feed is being imported and can read that feed's XML once for summaries and video descriptions.
   module PollFeedPatch
     def execute(args)
@@ -144,8 +143,9 @@ module ::DiscourseRssOnebox
     end
   end
 
+  # Wraps TopicEmbed.import. For topics already imported into a configured category, feed-content changes are ignored: the stored content fingerprint is set to the value core is about to compute, so core does not revise the body. Title, tag, and author changes still go through core. If core revises the body anyway (a title or tag change always rewrites it, as would a future change to core's processing), the body is restored silently afterwards. Keyword arguments added to TopicEmbed.import by newer Discourse versions (such as truncate:) are passed through unchanged.
   module TopicEmbedImportPatch
-    def import(user, url, title, contents, category_id: nil, cook_method: nil, tags: nil)
+    def import(user, url, title, contents, category_id: nil, cook_method: nil, tags: nil, **options)
       embed = url.to_s.match?(%r{\Ahttps?://}) ? topic_embed_by_url(url) : nil
       protect = embed&.topic.present? && ::DiscourseRssOnebox.configured?(embed.topic.category_id)
       configured = protect || (embed.nil? && ::DiscourseRssOnebox.configured?(category_id))
@@ -176,15 +176,12 @@ module ::DiscourseRssOnebox
       end
 
       if protect
-        # Mirrors the contents processing at the top of TopicEmbed.import (truncation, then the "imported from" footer) so the fingerprint matches what core computes.
-        processed = contents.to_s
-        processed = first_paragraph_from(processed) if SiteSetting.embed_truncate && cook_method.nil?
-        processed = (processed || "").dup << imported_from_html(url)
-        sha1 = Digest::SHA1.hexdigest(processed)
+        sha1 = Digest::SHA1.hexdigest(rss_onebox_expected_contents(contents, url, cook_method, options))
         embed.update_column(:content_sha1, sha1) if embed.content_sha1 != sha1
       end
 
-      post = super(user, url, title, contents, category_id: category_id, cook_method: cook_method, tags: tags)
+      post =
+        super(user, url, title, contents, category_id: category_id, cook_method: cook_method, tags: tags, **options)
 
       if protect && post && !::DiscourseRssOnebox.onebox_body?(post.raw, embed.embed_url)
         ::DiscourseRssOnebox.restore_body!(post, url)
@@ -195,6 +192,23 @@ module ::DiscourseRssOnebox
       Thread.current[:rss_onebox_original_title] = nil
       Thread.current[:rss_onebox_source_name] = nil
       Thread.current[:rss_onebox_topic_feed_id] = nil
+    end
+
+    private
+
+    # Mirrors the contents processing at the top of TopicEmbed.import (truncation, then the "imported from" footer) so the fingerprint matches what core computes. Uses core's own helpers: Discourse 2026.7 truncates whenever embed_truncate is on and cook_method is nil; newer versions take a truncate: argument and keep the full contents when the excerpt would not shorten the text (text_truncated?).
+    def rss_onebox_expected_contents(contents, url, cook_method, options)
+      processed = contents.to_s
+      truncate = options.key?(:truncate) ? options[:truncate] : cook_method.nil?
+      if SiteSetting.embed_truncate && truncate
+        excerpt = first_paragraph_from(processed)
+        if respond_to?(:text_truncated?, true)
+          processed = excerpt if text_truncated?(processed, excerpt)
+        else
+          processed = excerpt || ""
+        end
+      end
+      processed.to_s.dup << imported_from_html(url)
     end
   end
 end

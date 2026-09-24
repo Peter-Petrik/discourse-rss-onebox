@@ -28,8 +28,8 @@ Settings are under **Admin → Installed plugins → RSS Polling Onebox → Sett
 | `rss_onebox_categories` | category list | empty | Categories whose RSS-imported topics are rendered as a onebox. With no categories selected, the plugin has no effect. |
 | `rss_onebox_enhanced` | boolean | `false` | Shows the feed summary when an article's page provides no description. |
 | `rss_onebox_youtube_descriptions` | boolean | `false` | Shows the full YouTube video description below the player. |
-| `rss_onebox_blog_title_format` | text | empty | Title format for topics from blog feeds (every feed that is not YouTube). Empty leaves titles unchanged. |
-| `rss_onebox_youtube_title_format` | text | empty | Title format for topics from YouTube channel feeds. Empty leaves titles unchanged. |
+| `rss_onebox_blog_title_format` | text | `%{title}` | Title format for topics from blog feeds (every feed that is not YouTube). The default leaves titles unchanged, as does an empty value. |
+| `rss_onebox_youtube_title_format` | text | `%{title}` | Title format for topics from YouTube channel feeds. The default leaves titles unchanged, as does an empty value. |
 
 Display names for `%{source}` are set on the plugin's **Display names** page (**Admin → Installed plugins → RSS Polling Onebox → Display names**, at `/admin/plugins/discourse-rss-onebox/display-names`), not in the settings above.
 
@@ -97,7 +97,7 @@ For summaries and descriptions, It considers only topics that need data: YouTube
 
 For titles, the topic's feed is the one that contains its item or, for items no longer in any feed, the only configured feed with the same author as the topic; the source name is that feed's display name, else its published name. The task also records each feed's published name and each topic's feed ID, which the Display names page and later re-renders use. Topics whose source name cannot be determined keep an unformatted title and are counted in the summary line. Renaming is silent, as on polls.
 
-The task prints a progress line per feed and per older feed page, a line per topic that needs data, and a line per title it would change. It warns, with a link to the plugin's settings, when either display setting is off, because stored summaries and descriptions are not displayed until the setting is on.
+Only feeds enabled in RSS Polling are read; disabled feeds are still used to match older topics to a feed by author. The task prints a short progress line per feed, then a summary: feeds read and any that could not be read, summaries and descriptions to store and any without a source, rebakes, and titles to rename grouped by source name with one example rename each. `VERBOSE=1` adds per-feed detail and a line for every topic that needs data or a new title. The task warns, with a link to the plugin's settings, when either display setting is off, because stored summaries and descriptions are not displayed until the setting is on.
 
 ```bash
 cd /var/discourse
@@ -107,7 +107,7 @@ APPLY=1 rake rss_onebox:enhance
 exit
 ```
 
-`REBAKE=1` additionally rebakes every topic that already has stored data, which applies a change to either display setting.
+`REBAKE=1` additionally rebakes every topic that already has stored data, which applies a change to either display setting. `VERBOSE=1` lists every affected topic.
 
 ### Converting Existing Topics
 
@@ -125,7 +125,7 @@ The first run is a dry run that lists each topic ID, author and article URL, the
 
 ### Known Limitations
 
-- **Feed content updates are ignored**: For topics already imported into a configured category, changes to a feed item's content (for example an edited blog post, or a change to the feed format) no longer rewrite the post. Title, tag, and author changes still apply; because core rewrites the body together with a title or tag change, the plugin restores the onebox body silently afterwards, and that edit remains in the post's revision history. The plugin wraps core's `TopicEmbed.import` to achieve this, so it depends on that method's signature and its content processing, verified against Discourse 2026.7.3.
+- **Feed content updates are ignored**: For topics already imported into a configured category, changes to a feed item's content (for example an edited blog post, or a change to the feed format) no longer rewrite the post. Title, tag, and author changes still apply; because core rewrites the body together with a title or tag change, the plugin restores the onebox body silently afterwards, and that edit remains in the post's revision history. The plugin wraps core's `TopicEmbed.import` to achieve this, so it depends on that method's content processing. Keyword arguments added in newer Discourse versions, such as `truncate:`, are passed through, and the content fingerprint follows core's own truncation helpers; this is verified against Discourse 2026.7.3 and against `main` as of 24 September 2026.
 - **Lowercase URLs from versions before 0.1.2**: Versions 0.1.0 and 0.1.1 wrote the lowercased embed URL into the post body. Re-running `rss_onebox:convert` repairs video topics; for other topics the original-case URL is no longer stored, so their URLs stay lowercase, which resolves correctly on sites with lowercase slugs.
 - **Manual title edits**: A topic's title is rebuilt from the feed on every poll while its item is in the feed, so a title edited by hand in Discourse is replaced. Core behaves the same way without the plugin.
 - **Source names for older items**: For items no longer in any feed, the source name is found through the topic's author, which works only when that author has exactly one configured feed.

@@ -12,8 +12,8 @@ discourse_rss_onebox:
     default: false
     client: false
   rss_onebox_blog_title_format:
-    default: ""
+    default: "%{title}"
     client: false
   rss_onebox_youtube_title_format:
-    default: ""
+    default: "%{title}"
     client: false
