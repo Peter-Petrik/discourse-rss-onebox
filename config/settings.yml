@@ -5,3 +5,9 @@ discourse_rss_onebox:
     type: category_list
     default: ""
     client: false
+  rss_onebox_enhanced:
+    default: false
+    client: false
+  rss_onebox_youtube_descriptions:
+    default: false
+    client: false
