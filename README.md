@@ -4,7 +4,7 @@ This plugin changes how topics imported by Discourse's bundled [RSS Polling](htt
 
 ## Project Status
 
-Early release, in use on a single production forum running Discourse 2026.7 ESR. See [Issues](https://github.com/Peter-Petrik/discourse-rss-onebox/issues) for known problems and planned work.
+Early release, in use on a single production forum running Discourse 2026.7 ESR. See the [CHANGELOG](CHANGELOG.md) for release history and [Issues](https://github.com/Peter-Petrik/discourse-rss-onebox/issues) for known problems and planned work.
 
 ## Features
 
