@@ -63,7 +63,7 @@ module ::DiscourseRssOnebox
       return "" if html.blank?
       result = +""
       Nokogiri::HTML5.fragment(html).css("p").each do |p|
-        t = p.text.squish
+        t = plain_text(p)
         next if t.blank?
         result << " " if result.present?
         result << t
@@ -73,7 +73,14 @@ module ::DiscourseRssOnebox
     end
 
     def self.text_of(html)
-      html.blank? ? "" : Nokogiri::HTML5.fragment(html).text.squish
+      html.blank? ? "" : plain_text(Nokogiri::HTML5.fragment(html))
+    end
+
+    # Text of an HTML node with each line break (<br>) turned into a " · " separator, so fields that are separated only by line breaks do not run together. Repeated, leading, and trailing separators are removed.
+    def self.plain_text(node)
+      node = node.dup
+      node.css("br").each { |br| br.replace(" · ") }
+      node.text.squish.gsub(/(?:\s*·\s*){2,}/, " · ").sub(/\A[\s·]+/, "").sub(/[\s·]+\z/, "")
     end
 
     def self.truncate(text)
@@ -99,7 +106,7 @@ module ::DiscourseRssOnebox
       return nil if html.blank?
       doc = Nokogiri::HTML5(html)
       scope = doc.at_css("article") || doc.at_css("main") || doc.at_css("body")
-      para = scope&.css("p")&.map { |p| p.text.squish }&.find { |t| t.length >= SUMMARY_MIN_CHARS }
+      para = scope&.css("p")&.map { |p| plain_text(p) }&.find { |t| t.length >= SUMMARY_MIN_CHARS }
       para && truncate(para)
     rescue StandardError
       nil
