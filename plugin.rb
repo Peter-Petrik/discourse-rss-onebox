@@ -2,7 +2,7 @@
 
 # name: discourse-rss-onebox
 # about: Renders RSS Polling imports in selected categories as a onebox of the article URL, with optional feed summaries and YouTube descriptions, and hides "Show Full Post" there
-# version: 0.2.0
+# version: 0.2.1
 # authors: Peter Petrik
 # url: https://github.com/Peter-Petrik/discourse-rss-onebox
 

@@ -7,20 +7,16 @@ module ::DiscourseRssOnebox
     SUMMARY_MAX_CHARS = 300
     MAX_BYTES = 10 * 1024 * 1024
 
-    # Downloads a URL with core's FinalDestination, the same client RSS Polling uses for feeds. Returns the body, or nil on any non-success response or error.
+    # Downloads a URL with core's FinalDestination, the same client RSS Polling uses for feeds. FinalDestination also calls the block for redirect responses (with no data and a blank URI) before following the redirect, so those calls are skipped, as RSS Polling's own fetch does. Returns the body, or nil when nothing was received or an error occurred.
     def self.fetch(url)
       body = +""
-      failed = false
       fd = FinalDestination.new(url, timeout: SiteSetting.rss_polling_feed_request_timeout)
       fd.get do |response, chunk, uri|
-        if uri.blank? || !response.is_a?(Net::HTTPSuccess)
-          failed = true
-          throw :done
-        end
+        throw :done if uri.blank? || !response.is_a?(Net::HTTPSuccess) || chunk.nil?
         body << chunk
         throw :done if body.bytesize > MAX_BYTES
       end
-      failed || body.blank? ? nil : body
+      body.empty? ? nil : body
     rescue StandardError
       nil
     end

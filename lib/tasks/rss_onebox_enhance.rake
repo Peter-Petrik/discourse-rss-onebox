@@ -51,8 +51,10 @@ task "rss_onebox:enhance" => :environment do
     remaining = -> { needed.keys.count { |u| !found.key?(u) && host.(u) == feed_host } }
     next if remaining.() == 0
 
+    puts "Reading #{feed.url} (#{remaining.()} topics to match)"
     items = DiscourseRssOnebox::FeedReader.read(feed.url)
     record.(items, "feed")
+    puts "  feed: #{items.size} items, #{remaining.()} still unmatched"
     seen = items.keys.to_set
 
     (2..max_pages).each do |page|
@@ -62,9 +64,12 @@ task "rss_onebox:enhance" => :environment do
       break if page_items.empty? || page_items.keys.all? { |k| seen.include?(k) }
       seen.merge(page_items.keys)
       record.(page_items, "feed page #{page}")
+      puts "  page #{page}: #{page_items.size} items, #{remaining.()} still unmatched"
     end
   end
 
+  article_checks = needed.count { |url, (_, kind)| !found.key?(url) && kind != :video }
+  puts "Checking #{article_checks} article pages" if article_checks > 0
   needed.each do |url, (embed, kind)|
     next if found.key?(url) || kind == :video
     text = DiscourseRssOnebox::FeedReader.page_summary(embed.embed_url)
