@@ -61,4 +61,10 @@
       text-align: right;
     }
   }
+
+  // Keeps each mobile label on one line; the field beside it shrinks instead.
+  .d-table__mobile-label {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
 }

@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-09-25
+
+### Changed
+- **Title Format Help Text**: The help for both title format settings stated that existing topics are renamed by `rss_onebox:enhance`, implying the task is needed after every format change. It now states that topics whose item is still in the feed are renamed at the next poll, and that the task renames older topics.
+
+### Fixed
+- **Display Names Labels on Phones**: The mobile labels on the Display names page wrapped onto two lines because the field beside them took the available width first. Labels now stay on one line and the field shrinks instead.
+
 ## [0.2.6] - 2026-09-25
 
 ### Fixed
@@ -84,7 +92,8 @@ All notable changes to this project are documented in this file. The format is b
 - **Convert Task**: `rss_onebox:convert` converts topics imported before installation. It defaults to a dry run, is safe to repeat, and rewrites posts silently.
 - **Settings**: `rss_onebox_enabled` and `rss_onebox_categories`.
 
-[Unreleased]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.3...v0.2.4

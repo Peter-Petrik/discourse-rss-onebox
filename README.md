@@ -81,6 +81,8 @@ A format is plain text containing `%{title}` (the post's or video's title as pub
 
 The feed's original title, published source name, and RSS Polling feed ID are stored on each topic, and the displayed title is always built from them, so changing a format never produces doubled prefixes. The plugin's wrapper around `TopicEmbed.import` applies the format on creation and on every poll, renaming silently (no revision, bump, or notification) when the result differs, for example after a format change or when the feed's name or an item's title changes. Core therefore always sees matching titles and never creates a title revision.
 
+Renaming changes a topic's URL slug, but Discourse finds topics by their ID and redirects any link with an outdated slug to the current URL, so earlier links in digests, notifications, and bookmarks keep working.
+
 ### Display Names Page
 
 The page lists every RSS Polling feed, in the same table layout as RSS Polling's own feed list, with its author, its published name as last read, and a display name field. A blank display name uses the published name, shown as the field's placeholder. Feeds that are disabled in RSS Polling are dimmed, as on RSS Polling's page, and their display name can still be edited.
@@ -93,7 +95,7 @@ Published names are recorded whenever a feed is read: during polls that import a
 
 `rss_onebox:enhance` brings existing topics up to date: it stores summaries and video descriptions for topics imported before 0.2.0, and re-renders every topic's title from the title format settings.
 
-For summaries and descriptions, It considers only topics that need data: YouTube topics without a stored description, and topics whose onebox has no description (or failed) without a stored summary. For each, it tries in order: the item in the live feed, older pages of the same feed (`?paged=2`, `?paged=3`, and so on, which WordPress supports; it stops at the first page that fails, is empty, or repeats), and finally the first paragraph of at least 80 characters in the article page's main content. Topics with no source found are reported.
+For summaries and descriptions, it considers only topics that need data: YouTube topics without a stored description, and topics whose onebox has no description (or failed) without a stored summary. For each, it tries in order: the item in the live feed, older pages of the same feed (`?paged=2`, `?paged=3`, and so on, which WordPress supports; it stops at the first page that fails, is empty, or repeats), and finally the first paragraph of at least 80 characters in the article page's main content. Topics with no source found are reported.
 
 For titles, the topic's feed is the one that contains its item or, for items no longer in any feed, the only configured feed with the same author as the topic; the source name is that feed's display name, else its published name. The task also records each feed's published name and each topic's feed ID, which the Display names page and later re-renders use. Topics whose source name cannot be determined keep an unformatted title and are counted in the summary line. Renaming is silent, as on polls.
 
@@ -108,6 +110,14 @@ exit
 ```
 
 `REBAKE=1` additionally rebakes every topic that already has stored data, which applies a change to either display setting. `VERBOSE=1` lists every affected topic.
+
+When to run the task:
+
+1. After installing the plugin, or upgrading from a version before 0.2.0, to backfill summaries, descriptions, and titles.
+2. After changing a title format, to rename topics whose post is no longer in its feed; topics still in the feed are renamed at their next poll.
+3. With `REBAKE=1`, after turning either display setting on or off.
+
+It is not needed after saving a display name or using **Refresh published names**, because both re-render the affected titles themselves.
 
 ### Converting Existing Topics
 
