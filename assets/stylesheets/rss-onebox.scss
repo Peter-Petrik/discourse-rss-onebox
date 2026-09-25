@@ -39,26 +39,36 @@
     gap: 0.5em;
     align-items: center;
 
-    input {
+    input[type="text"] {
       margin: 0;
       min-width: 12em;
     }
 
+    // On phones the wrapper and field size only from the space beside the label, never from the field's natural width; without min-width: 0 and width: 0 the row grows wider than the screen.
     @include viewport.until(md) {
       flex: 1 1 auto;
+      min-width: 0;
       justify-content: flex-end;
       margin-left: var(--space-2);
 
-      input {
+      input[type="text"] {
         flex: 1 1 auto;
+        width: 0;
         min-width: 0;
+      }
+
+      .btn {
+        flex-shrink: 0;
       }
     }
   }
 
   &__value {
     @include viewport.until(md) {
+      min-width: 0;
+      margin-left: var(--space-2);
       text-align: right;
+      overflow-wrap: anywhere;
     }
   }
 

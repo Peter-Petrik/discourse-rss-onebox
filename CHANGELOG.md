@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-09-25
+
+### Fixed
+- **Display Names Page Wider Than Phone Screens**: The 0.2.7 change that kept mobile labels on one line left the display-name field unable to shrink, because the field and its wrapper kept their natural minimum width, so each row grew wider than the screen and cut off the Save button and long values. On phones the field now sizes only from the space beside its label, the Save button keeps its full width, and long published names wrap.
+
 ## [0.2.7] - 2026-09-25
 
 ### Changed
@@ -92,7 +97,8 @@ All notable changes to this project are documented in this file. The format is b
 - **Convert Task**: `rss_onebox:convert` converts topics imported before installation. It defaults to a dry run, is safe to repeat, and rewrites posts silently.
 - **Settings**: `rss_onebox_enabled` and `rss_onebox_categories`.
 
-[Unreleased]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.7...HEAD
+[Unreleased]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.4...v0.2.5
