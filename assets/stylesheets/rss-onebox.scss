@@ -1,3 +1,5 @@
+@use "lib/viewport";
+
 .cooked {
   .rss-onebox-description,
   .rss-onebox-summary {
@@ -31,7 +33,8 @@
     font-size: var(--font-down-1);
   }
 
-  &__edit {
+  // The edit field sits in a flex wrapper inside the cell, so the cell keeps normal table-cell layout on desktop. Below the md breakpoint core's d-table stacks each cell as a labelled line; the controls then take the width left beside the label.
+  &__controls {
     display: flex;
     gap: 0.5em;
     align-items: center;
@@ -39,6 +42,23 @@
     input {
       margin: 0;
       min-width: 12em;
+    }
+
+    @include viewport.until(md) {
+      flex: 1 1 auto;
+      justify-content: flex-end;
+      margin-left: var(--space-2);
+
+      input {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+    }
+  }
+
+  &__value {
+    @include viewport.until(md) {
+      text-align: right;
     }
   }
 }

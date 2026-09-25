@@ -61,39 +61,49 @@ class DisplayNameRow extends Component {
         </div>
       </td>
       <td class="d-table__cell --detail rss-onebox-display-name__published">
-        {{#if @feed.published_name}}
-          {{@feed.published_name}}
-        {{else}}
-          <span class="rss-onebox-display-name__not-read">{{i18n
-              "admin.rss_onebox.display_names.not_read_yet"
-            }}</span>
-        {{/if}}
-        {{#if @feed.fetch_error}}
-          <div class="rss-onebox-display-name__error">{{i18n
-              "admin.rss_onebox.display_names.fetch_error"
-            }}</div>
-        {{/if}}
+        <span class="d-table__mobile-label">{{i18n
+            "admin.rss_onebox.display_names.published_name"
+          }}</span>
+        <div class="rss-onebox-display-name__value">
+          {{#if @feed.published_name}}
+            {{@feed.published_name}}
+          {{else}}
+            <span class="rss-onebox-display-name__not-read">{{i18n
+                "admin.rss_onebox.display_names.not_read_yet"
+              }}</span>
+          {{/if}}
+          {{#if @feed.fetch_error}}
+            <div class="rss-onebox-display-name__error">{{i18n
+                "admin.rss_onebox.display_names.fetch_error"
+              }}</div>
+          {{/if}}
+        </div>
       </td>
-      <td class="d-table__cell --controls rss-onebox-display-name__edit">
-        <input
-          type="text"
-          value={{this.value}}
-          placeholder={{@feed.published_name}}
-          aria-label={{i18n "admin.rss_onebox.display_names.display_name"}}
-          {{on "input" this.updateValue}}
-        />
-        <DButton
-          @action={{this.save}}
-          @label="admin.rss_onebox.display_names.save"
-          @isLoading={{this.saving}}
-          @disabled={{this.saving}}
-          class="btn-default btn-small"
-        />
-        {{#if this.saved}}
-          <span class="rss-onebox-display-name__saved">{{i18n
-              "admin.rss_onebox.display_names.saved"
-            }}</span>
-        {{/if}}
+      <td class="d-table__cell --detail rss-onebox-display-name__edit">
+        <span class="d-table__mobile-label">{{i18n
+            "admin.rss_onebox.display_names.display_name"
+          }}</span>
+        <div class="rss-onebox-display-name__controls">
+          <input
+            type="text"
+            value={{this.value}}
+            placeholder={{@feed.published_name}}
+            aria-label={{i18n "admin.rss_onebox.display_names.display_name"}}
+            {{on "input" this.updateValue}}
+          />
+          <DButton
+            @action={{this.save}}
+            @label="admin.rss_onebox.display_names.save"
+            @isLoading={{this.saving}}
+            @disabled={{this.saving}}
+            class="btn-default btn-small"
+          />
+          {{#if this.saved}}
+            <span class="rss-onebox-display-name__saved">{{i18n
+                "admin.rss_onebox.display_names.saved"
+              }}</span>
+          {{/if}}
+        </div>
       </td>
     </tr>
   </template>

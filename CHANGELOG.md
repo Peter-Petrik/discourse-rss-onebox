@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-09-25
+
+### Fixed
+- **Display Names Page on Phones**: On narrow screens, core's admin table positions cells of the controls type absolutely at the top right of each row, which suits a small action button but placed the display-name field and Save button over the feed URL and author. The field now uses the detail cell type, which stays in the normal flow as its own line, and the published name and display name lines carry core's mobile labels, since the column headers are hidden on phones. The field's flex layout moved from the table cell to a wrapper inside it, so the cell also keeps normal table layout on desktop.
+
 ## [0.2.5] - 2026-09-24
 
 ### Added
@@ -79,7 +84,8 @@ All notable changes to this project are documented in this file. The format is b
 - **Convert Task**: `rss_onebox:convert` converts topics imported before installation. It defaults to a dry run, is safe to repeat, and rewrites posts silently.
 - **Settings**: `rss_onebox_enabled` and `rss_onebox_categories`.
 
-[Unreleased]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/Peter-Petrik/discourse-rss-onebox/compare/v0.2.2...v0.2.3
